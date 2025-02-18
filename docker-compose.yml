@@ -1,0 +1,84 @@
+services:
+  apache:
+    container_name: setup-apache
+    build:
+      context: ./docker/apache
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    tty: true
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./demo:/var/www/html
+      - ./docker/apache/apache.conf:/etc/apache2/sites-available/000-default.conf
+      - ./docker/php/local.ini:/usr/local/etc/php/conf.d/local.ini
+      - ./docker/php/conf.d/xdebug.ini:/usr/local/etc/php/conf.d/xdebug.ini
+      - ./docker/php/supervisor/:/etc/supervisor/conf.d/
+      - setup-data:/user/local/bin/composer
+    networks:
+      - setup-network
+
+  mysql:
+    container_name: setup-mysql
+    image: mysql:8.0
+    command: --default-authentication-plugin=mysql_native_password
+    restart: always
+    tty: true
+    volumes:
+      - setup-data:/var/lib/mysql/
+      - ./docker/mysql/my.cnf:/etc/mysql/my.cnf
+    networks:
+      - setup-network
+    ports:
+      - '3306:3306'
+    environment:
+      MYSQL_DATABASE: laravel
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
+
+  redis:
+    container_name: setup-redis
+    build:
+      context: ./docker/redis
+      dockerfile: Dockerfile
+    ports:
+      - '6379:6379'
+
+  mailpit:
+    image: axllent/mailpit
+    container_name: mailpit
+    restart: unless-stopped
+    volumes:
+      - ./data:/data
+    ports:
+      - 8025:8025
+      - 1025:1025
+    environment:
+      MP_MAX_MESSAGES: 5000
+      MP_DATABASE: /data/mailpit.db
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+
+  firebird:
+    container_name: setup-firebird
+    image: jacobalberty/firebird:2.5-sc  # Usando a imagem para Firebird 2.5 SuperClassic
+    restart: unless-stopped
+    environment:
+      ISC_USER: sysdba
+      ISC_PASSWORD: masterkey
+    volumes:
+      - ./firebird_db:/firebird/db   # Caminho local para o banco de dados Firebird
+    ports:
+      - '3050:3050'                    # Porta padrão para Firebird
+    networks:
+      - setup-network
+
+networks:
+  setup-network:
+    driver: bridge
+
+volumes:
+  setup-data:
+    driver: local
